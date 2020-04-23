@@ -69,3 +69,13 @@ To skip the tag for the generated XXX_* fields, use
 `-XXX_skip=yaml,xml` flag.
 
 To enable verbose logging, use `-verbose`
+
+标签类型说明
+
+  | 标签值        |         说明          |  示例 |
+  | :---          |         :---          | :--- |
+  | "-"           | 忽略标签值            |   json:"-"    |
+  | "#-"          | 删除原有的标签        |aaa:"#-", 改标签将被删除|
+  | "#toSnake"    | 根据字段名转蛇形            |   json:"field_name"    |
+  | "#toCamel"    | 根据字段名转驼峰           |   json:"FieldName"    |
+  | "#toCamel2"   | 根据字段名转驼峰并首字母小写 |   json:"fieldName"    |

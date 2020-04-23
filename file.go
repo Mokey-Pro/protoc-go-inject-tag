@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/favadi/protoc-go-inject-tag/constants"
+	"github.com/favadi/protoc-go-inject-tag/utils"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -84,21 +86,53 @@ func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error)
 				}
 			}
 			if field.Doc == nil {
-				continue
-			}
-			for _, comment := range field.Doc.List {
-				tag := tagFromComment(comment.Text)
-				if tag == "" {
+				if genDecl.Doc == nil {
+					// 结构体上没有注解 && 字段上没有注解
 					continue
+				} else {
+					// 结构体上有注解，字段上没有注解 ==>> 根据字段名称构建注解
+					for _, structComment := range genDecl.Doc.List {
+						structTag := tagFromComment(structComment.Text) // 结构体注解上的标签
+						if structTag == "" {
+							continue
+						} else {
+							structTags := newTagItems(structTag)
+							for _, eachStructTag := range structTags {
+								currAreas := buildTagByFieldName(eachStructTag.key, eachStructTag.value, field)
+								if currAreas != nil {
+									areas = append(areas, currAreas...)
+								}
+							}
+						}
+					}
 				}
-				currentTag := field.Tag.Value
-				area := textArea{
-					Start:      int(field.Pos()),
-					End:        int(field.End()),
-					CurrentTag: currentTag[1 : len(currentTag)-1],
-					InjectTag:  tag,
+			} else {
+				// 字段上有注解 (忽略结构体上的注解)
+				for _, comment := range field.Doc.List {
+					tag := tagFromComment(comment.Text)
+					if tag == "" {
+						continue
+					}
+
+					fieldTags := newTagItems(tag)
+					for _, eachFieldTag := range fieldTags {
+						if strings.HasPrefix(eachFieldTag.value, string(constants.TAG_VALUE_keep_prefix)) {
+							currAreas := buildTagByFieldName(eachFieldTag.key, eachFieldTag.value, field)
+							if currAreas != nil {
+								areas = append(areas, currAreas...)
+							}
+						} else {
+							currentTag := field.Tag.Value
+							area := textArea{
+								Start:      int(field.Pos()),
+								End:        int(field.End()),
+								CurrentTag: currentTag[1 : len(currentTag)-1],
+								InjectTag:  tag,
+							}
+							areas = append(areas, area)
+						}
+					}
 				}
-				areas = append(areas, area)
 			}
 		}
 	}
@@ -133,6 +167,38 @@ func writeFile(inputPath string, areas []textArea) (err error) {
 
 	if len(areas) > 0 {
 		logf("file %q is injected with custom tags", inputPath)
+	}
+	return
+}
+
+// 根据字段名构建标签
+func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areas []textArea) {
+	if len(field.Names) <= 0 {
+		return nil
+	}
+	fieldName := field.Names[0].Name
+
+	var buildTag string
+	if string(constants.TAG_VALUE_keep_toCamel) == tagValue {
+		buildTag = fmt.Sprintf("%s:\"%s\"", tagKey, utils.Format2Camel(fieldName))
+	} else if string(constants.TAG_VALUE_keep_toCamel2) == tagValue {
+		buildTag = fmt.Sprintf("%s:\"%s\"", tagKey, utils.LcFirst(utils.Format2Camel(fieldName)))
+	} else if string(constants.TAG_VALUE_keep_toSnake) == tagValue {
+		buildTag = fmt.Sprintf("%s:\"%s\"", tagKey, utils.Format2Snake(fieldName))
+	}
+
+	currentTag := field.Tag.Value
+	currentTags := newTagItems(field.Tag.Value)
+	for _, eachCurrentTag := range currentTags {
+		if string(constants.TAG_VALUE_keep_ignore) != eachCurrentTag.value {
+			area := textArea{
+				Start:      int(field.Pos()),
+				End:        int(field.End()),
+				CurrentTag: currentTag[1 : len(currentTag)-1],
+				InjectTag:  buildTag,
+			}
+			areas = append(areas, area)
+		}
 	}
 	return
 }

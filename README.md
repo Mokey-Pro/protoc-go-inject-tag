@@ -71,11 +71,15 @@ To skip the tag for the generated XXX_* fields, use
 To enable verbose logging, use `-verbose`
 
 标签类型说明
+ 1. 作用域优先级:
+    结构体注解上的标签 < 字段注解上的标签
+    即：当字段注解上没有改类型的标签说明，则适用结构体注解上的标签规则；当字段注解和结构体注解上都有标签的说明，只使用字段注解上的标签规则。
+ 2. 标签值规则, 如下表格：  
 
   | 标签值        |         说明          |  示例 |
   | :---          |         :---          | :--- |
   | "-"           | 忽略标签值            |   json:"-"    |
-  | "#-"          | 删除原有的标签        |aaa:"#-", 改标签将被删除|
   | "#toSnake"    | 根据字段名转蛇形            |   json:"field_name"    |
   | "#toCamel"    | 根据字段名转驼峰           |   json:"FieldName"    |
   | "#toCamel2"   | 根据字段名转驼峰并首字母小写 |   json:"fieldName"    |
+  | 自定义标签  | 直接使用该标签 |   selfTag:"self-tag-value"    |

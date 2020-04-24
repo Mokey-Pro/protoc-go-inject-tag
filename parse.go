@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/favadi/protoc-go-inject-tag/utils"
 	"strings"
 )
 
@@ -16,6 +17,10 @@ func tagFromComment(comment string) (tag string) {
 type tagItem struct {
 	key   string
 	value string
+}
+
+func (thiz tagItem) isEmpty() bool {
+	return utils.IsEmpty(thiz.key) && utils.IsEmpty(thiz.value)
 }
 
 type tagItems []tagItem

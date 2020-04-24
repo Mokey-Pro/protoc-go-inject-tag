@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
-	"strings"
 )
 
 var (
@@ -60,7 +59,7 @@ func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error)
 			continue
 		}
 
-		builder := strings.Builder{}
+		/*builder := strings.Builder{}
 		if len(xxxSkip) > 0 {
 			for i, skip := range xxxSkip {
 				builder.WriteString(fmt.Sprintf("%s:\"-\"", skip))
@@ -68,76 +67,92 @@ func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error)
 					builder.WriteString(",")
 				}
 			}
+		}*/
+
+		var structTags tagItems // 结构体注解上的标签
+		if genDecl.Doc != nil {
+			structTags = getTagsFromComment(genDecl.Doc.List)
 		}
 
 		for _, field := range structDecl.Fields.List {
-			// skip if field has no doc
-			if len(field.Names) > 0 {
-				name := field.Names[0].Name
-				if len(xxxSkip) > 0 && strings.HasPrefix(name, "XXX") {
-					currentTag := field.Tag.Value
-					area := textArea{
-						Start:      int(field.Pos()),
-						End:        int(field.End()),
-						CurrentTag: currentTag[1 : len(currentTag)-1],
-						InjectTag:  builder.String(),
-					}
-					areas = append(areas, area)
-				}
+			var fieldTags tagItems // 字段注解上的标签
+			if field.Doc != nil {
+				fieldTags = getTagsFromComment(field.Doc.List)
 			}
-			if field.Doc == nil {
-				if genDecl.Doc == nil {
-					// 结构体上没有注解 && 字段上没有注解
+
+			// 根据tagKey获取结构体注释中对应的标签
+			getFieldTag := func(tagKey string) tagItem {
+				for _, each := range fieldTags {
+					if tagKey == each.key {
+						return each
+					}
+				}
+				return tagItem{}
+			}
+
+			// 处理结构体注释中的标签
+			for _, eachStructTag := range structTags {
+				// 字段上对应key的标签
+				fieldTag := getFieldTag(eachStructTag.key)
+
+				if !fieldTag.isEmpty() {
+					// 字段标签有值 --> 根据字段标签构造
+					if currAreas := buildTagByFieldName(fieldTag.key, fieldTag.value, field); currAreas != nil {
+						areas = append(areas, currAreas...)
+					}
 					continue
 				} else {
-					// 结构体上有注解，字段上没有注解 ==>> 根据字段名称构建注解
-					for _, structComment := range genDecl.Doc.List {
-						structTag := tagFromComment(structComment.Text) // 结构体注解上的标签
-						if structTag == "" {
-							continue
-						} else {
-							structTags := newTagItems(structTag)
-							for _, eachStructTag := range structTags {
-								currAreas := buildTagByFieldName(eachStructTag.key, eachStructTag.value, field)
-								if currAreas != nil {
-									areas = append(areas, currAreas...)
-								}
-							}
-						}
+					// 字段标签没有值 --> 根据结构体标签构造
+					if currAreas := buildTagByFieldName(eachStructTag.key, eachStructTag.value, field); currAreas != nil {
+						areas = append(areas, currAreas...)
 					}
+					continue
 				}
-			} else {
-				// 字段上有注解 (忽略结构体上的注解)
-				for _, comment := range field.Doc.List {
-					tag := tagFromComment(comment.Text)
-					if tag == "" {
-						continue
-					}
+			}
 
-					fieldTags := newTagItems(tag)
-					for _, eachFieldTag := range fieldTags {
-						if strings.HasPrefix(eachFieldTag.value, string(constants.TAG_VALUE_keep_prefix)) {
-							currAreas := buildTagByFieldName(eachFieldTag.key, eachFieldTag.value, field)
-							if currAreas != nil {
-								areas = append(areas, currAreas...)
-							}
-						} else {
-							currentTag := field.Tag.Value
-							area := textArea{
-								Start:      int(field.Pos()),
-								End:        int(field.End()),
-								CurrentTag: currentTag[1 : len(currentTag)-1],
-								InjectTag:  tag,
-							}
-							areas = append(areas, area)
+			// 处理字段注释中出现而结构体注释中没有出现的标签
+			for _, eachFieldTag := range fieldTags {
+
+				// 根据tagKey获取字段注释中对应的标签
+				getStructTag := func(tagKey string) tagItem {
+					for _, each := range structTags {
+						if tagKey == each.key {
+							return each
 						}
 					}
+					return tagItem{}
+				}
+
+				structTag := getStructTag(eachFieldTag.key)
+				if !structTag.isEmpty() {
+					// 已经处理过了
+					continue
+				}
+
+				if currAreas := buildTagByFieldName(eachFieldTag.key, eachFieldTag.value, field); currAreas != nil {
+					areas = append(areas, currAreas...)
 				}
 			}
 		}
 	}
 	logf("parsed file %q, number of fields to inject custom tags: %d", inputPath, len(areas))
 	return
+}
+
+// 获取注解上的标签
+func getTagsFromComment(commentList []*ast.Comment) tagItems {
+	var structTags []tagItem
+	// 结构体上有注解，字段上没有注解 ==>> 根据字段名称构建注解
+	for _, structComment := range commentList {
+		structTag := tagFromComment(structComment.Text) // 结构体注解上的标签
+		if structTag == "" {
+			continue
+		} else {
+			structTags = append(structTags, newTagItems(structTag)...)
+		}
+	}
+
+	return structTags
 }
 
 func writeFile(inputPath string, areas []textArea) (err error) {
@@ -179,26 +194,25 @@ func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areas []tex
 	fieldName := field.Names[0].Name
 
 	var buildTag string
-	if string(constants.TAG_VALUE_keep_toCamel) == tagValue {
+	if string(constants.TAG_VALUE_keep_ignore) == tagValue {
+		buildTag = fmt.Sprintf("%s:%s", tagKey, tagValue)
+	} else if string(constants.TAG_VALUE_keep_toCamel) == tagValue {
 		buildTag = fmt.Sprintf("%s:\"%s\"", tagKey, utils.Format2Camel(fieldName))
 	} else if string(constants.TAG_VALUE_keep_toCamel2) == tagValue {
 		buildTag = fmt.Sprintf("%s:\"%s\"", tagKey, utils.LcFirst(utils.Format2Camel(fieldName)))
 	} else if string(constants.TAG_VALUE_keep_toSnake) == tagValue {
 		buildTag = fmt.Sprintf("%s:\"%s\"", tagKey, utils.Format2Snake(fieldName))
+	} else {
+		buildTag = fmt.Sprintf("%s:%s", tagKey, tagValue)
 	}
 
 	currentTag := field.Tag.Value
-	currentTags := newTagItems(field.Tag.Value)
-	for _, eachCurrentTag := range currentTags {
-		if string(constants.TAG_VALUE_keep_ignore) != eachCurrentTag.value {
-			area := textArea{
-				Start:      int(field.Pos()),
-				End:        int(field.End()),
-				CurrentTag: currentTag[1 : len(currentTag)-1],
-				InjectTag:  buildTag,
-			}
-			areas = append(areas, area)
-		}
+	area := textArea{
+		Start:      int(field.Pos()),
+		End:        int(field.End()),
+		CurrentTag: currentTag[1 : len(currentTag)-1],
+		InjectTag:  buildTag,
 	}
+	areas = append(areas, area)
 	return
 }

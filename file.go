@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -59,7 +60,7 @@ func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error)
 			continue
 		}
 
-		/*builder := strings.Builder{}
+		builder := strings.Builder{}
 		if len(xxxSkip) > 0 {
 			for i, skip := range xxxSkip {
 				builder.WriteString(fmt.Sprintf("%s:\"-\"", skip))
@@ -67,7 +68,7 @@ func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error)
 					builder.WriteString(",")
 				}
 			}
-		}*/
+		}
 
 		var structTags tagItems // 结构体注解上的标签
 		if genDecl.Doc != nil {

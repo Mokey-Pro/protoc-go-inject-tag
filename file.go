@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/favadi/protoc-go-inject-tag/constants"
-	"github.com/favadi/protoc-go-inject-tag/utils"
+	"github.com/Mokey-Pro/protoc-go-inject-tag/constants"
+	"github.com/Mokey-Pro/protoc-go-inject-tag/utils"
 	"go/ast"
 	"go/parser"
 	"go/token"

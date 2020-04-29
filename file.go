@@ -211,11 +211,15 @@ func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areas []tex
 		buildTag = fmt.Sprintf("%s:%s", tagKey, tagValue)
 	}
 
-	currentTag := field.Tag.Value
+	currentTag := ""
+	if field.Tag != nil {
+		currentTag = field.Tag.Value
+		currentTag = currentTag[1 : len(currentTag)-1]
+	}
 	area := textArea{
 		Start:      int(field.Pos()),
 		End:        int(field.End()),
-		CurrentTag: currentTag[1 : len(currentTag)-1],
+		CurrentTag: currentTag,
 		InjectTag:  buildTag,
 	}
 	areas = append(areas, area)

@@ -26,7 +26,7 @@ type textArea struct {
 	InjectTag  string
 }
 
-func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error) {
+func parseFile(inputPath string) (areas []textArea, err error) {
 	logf("parsing file %q for inject tag comments", inputPath)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, inputPath, nil, parser.ParseComments)

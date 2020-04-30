@@ -1,4 +1,4 @@
-module github.com/Mokey-Pro/protoc-go-inject-tag
+module github.com/Monkey-Pro/protoc-go-inject-tag
 
 require (
 	github.com/golang/protobuf v1.1.0

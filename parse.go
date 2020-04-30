@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/Mokey-Pro/protoc-go-inject-tag/utils"
+	"github.com/Monkey-Pro/protoc-go-inject-tag/utils"
 	"strings"
 )
 

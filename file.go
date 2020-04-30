@@ -26,7 +26,7 @@ type textArea struct {
 	InjectTag  string
 }
 
-func parseFile(inputPath string, xxxSkip []string) (areas []textArea, err error) {
+func parseFile(inputPath string) (areas []textArea, err error) {
 	logf("parsing file %q for inject tag comments", inputPath)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, inputPath, nil, parser.ParseComments)
@@ -211,11 +211,15 @@ func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areas []tex
 		buildTag = fmt.Sprintf("%s:%s", tagKey, tagValue)
 	}
 
-	currentTag := field.Tag.Value
+	currentTag := ""
+	if field.Tag != nil {
+		currentTag = field.Tag.Value
+		currentTag = currentTag[1 : len(currentTag)-1]
+	}
 	area := textArea{
 		Start:      int(field.Pos()),
 		End:        int(field.End()),
-		CurrentTag: currentTag[1 : len(currentTag)-1],
+		CurrentTag: currentTag,
 		InjectTag:  buildTag,
 	}
 	areas = append(areas, area)

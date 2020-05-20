@@ -37,7 +37,7 @@ func TestTagFromComment(t *testing.T) {
 func TestParseWriteFile(t *testing.T) {
 	expectedTag := `valid:"ip" yaml:"ip" json:"overrided"`
 
-	areas, err := parseFile(testInputFile, []string{})
+	areas, err := parseFile(testInputFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,8 @@ func TestNewTagItems(t *testing.T) {
 func TestContinueParsingWhenSkippingFields(t *testing.T) {
 	expectedTags := []string{`valid:"ip" yaml:"ip" json:"overrided"`, `xml:"-"`, `xml:"-"`, `xml:"-"`, `valid:"http|https"`, `valid:"nonzero"`, `xml:"-"`, `xml:"-"`, `xml:"-"`}
 
-	areas, err := parseFile(testInputFile, []string{"xml"})
+	//areas, err := parseFile(testInputFile, []string{"xml"})
+	areas, err := parseFile(testInputFile)
 	if err != nil {
 		t.Fatal(err)
 	}

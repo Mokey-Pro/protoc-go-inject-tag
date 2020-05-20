@@ -60,11 +60,11 @@ func handleProto(inputFile string) {
 		log.Fatal("input file is mandatory")
 	}
 
-	areas, err := parseFile(inputFile)
+	areasMap, err := parseFile(inputFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err = writeFile(inputFile, areas); err != nil {
+	if err = writeFile(inputFile, areasMap); err != nil {
 		log.Fatal(err)
 	}
 }

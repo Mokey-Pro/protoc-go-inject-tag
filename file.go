@@ -26,12 +26,28 @@ type textArea struct {
 	InjectTag  string
 }
 
-func parseFile(inputPath string) (areas []textArea, err error) {
+// 返回map[字段名][标签的列表]
+func parseFile(inputPath string) (retAreasMap map[string][]textArea, err error) {
 	logf("parsing file %q for inject tag comments", inputPath)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, inputPath, nil, parser.ParseComments)
 	if err != nil {
 		return
+	}
+
+	retAreasMap = make(map[string][]textArea, 0)
+	_appendTextArea := func(areasMap map[string][]textArea) {
+		for key, value := range areasMap {
+			_fileName := key
+			_areas := value
+
+			if areasList, ok := retAreasMap[_fileName]; !ok {
+				areasList = make([]textArea, 0)
+				retAreasMap[_fileName] = areasList
+			}
+
+			retAreasMap[_fileName] = append(retAreasMap[_fileName], _areas...)
+		}
 	}
 
 	for _, decl := range f.Decls {
@@ -98,14 +114,16 @@ func parseFile(inputPath string) (areas []textArea, err error) {
 
 				if !fieldTag.isEmpty() {
 					// 字段标签有值 --> 根据字段标签构造
-					if currAreas := buildTagByFieldName(fieldTag.key, fieldTag.value, field); currAreas != nil {
-						areas = append(areas, currAreas...)
+					if currAreasMap := buildTagByFieldName(fieldTag.key, fieldTag.value, field); currAreasMap != nil {
+						//retAreasMap = append(retAreasMap, currAreas...)
+						_appendTextArea(currAreasMap)
 					}
 					continue
 				} else {
 					// 字段标签没有值 --> 根据结构体标签构造
-					if currAreas := buildTagByFieldName(eachStructTag.key, eachStructTag.value, field); currAreas != nil {
-						areas = append(areas, currAreas...)
+					if currAreasMap := buildTagByFieldName(eachStructTag.key, eachStructTag.value, field); currAreasMap != nil {
+						//retAreasMap = append(retAreasMap, currAreas...)
+						_appendTextArea(currAreasMap)
 					}
 					continue
 				}
@@ -130,13 +148,14 @@ func parseFile(inputPath string) (areas []textArea, err error) {
 					continue
 				}
 
-				if currAreas := buildTagByFieldName(eachFieldTag.key, eachFieldTag.value, field); currAreas != nil {
-					areas = append(areas, currAreas...)
+				if currAreasMap := buildTagByFieldName(eachFieldTag.key, eachFieldTag.value, field); currAreasMap != nil {
+					//retAreasMap = append(retAreasMap, currAreas...)
+					_appendTextArea(currAreasMap)
 				}
 			}
 		}
 	}
-	logf("parsed file %q, number of fields to inject custom tags: %d", inputPath, len(areas))
+	logf("parsed file %q, number of fields to inject custom tags: %d", inputPath, len(retAreasMap))
 	return
 }
 
@@ -156,7 +175,7 @@ func getTagsFromComment(commentList []*ast.Comment) tagItems {
 	return structTags
 }
 
-func writeFile(inputPath string, areas []textArea) (err error) {
+func writeFile(inputPath string, areasMap map[string][]textArea) (err error) {
 	f, err := os.Open(inputPath)
 	if err != nil {
 		return
@@ -172,23 +191,24 @@ func writeFile(inputPath string, areas []textArea) (err error) {
 	}
 
 	// inject custom tags from tail of file first to preserve order
-	for i := range areas {
-		area := areas[len(areas)-i-1]
-		logf("inject custom tag %q to expression %q", area.InjectTag, string(contents[area.Start-1:area.End-1]))
-		contents = injectTag(contents, area)
+	// 一个字段名的所有有效标签一次性替换掉
+	for _, areas := range areasMap {
+		//area := areas[len(areas)-i-1]
+		//logf("inject custom tag %q to expression %q", area.InjectTag, string(contents[area.Start-1:area.End-1]))
+		contents = injectTag(contents, areas)
 	}
 	if err = ioutil.WriteFile(inputPath, contents, 0644); err != nil {
 		return
 	}
 
-	if len(areas) > 0 {
+	if len(areasMap) > 0 {
 		logf("file %q is injected with custom tags", inputPath)
 	}
 	return
 }
 
 // 根据字段名构建标签
-func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areas []textArea) {
+func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areasMap map[string][]textArea) {
 	if len(field.Names) <= 0 {
 		return nil
 	}
@@ -222,6 +242,10 @@ func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areas []tex
 		CurrentTag: currentTag,
 		InjectTag:  buildTag,
 	}
+	areas := make([]textArea, 0)
 	areas = append(areas, area)
+
+	areasMap = make(map[string][]textArea, 0)
+	areasMap[fieldName] = areas
 	return
 }

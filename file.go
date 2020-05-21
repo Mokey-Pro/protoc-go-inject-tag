@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"github.com/Monkey-Pro/protoc-go-inject-tag/constants"
 	"github.com/Monkey-Pro/protoc-go-inject-tag/utils"
+	"github.com/gogf/gf/util/gconv"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -26,8 +28,8 @@ type textArea struct {
 	InjectTag  string
 }
 
-// 返回map[字段名][标签的列表]
-func parseFile(inputPath string) (retAreasMap map[string][]textArea, err error) {
+// 返回map[行起始位置][一个字段的标签列表]
+func parseFile(inputPath string) (retAreasMap map[int][]textArea, err error) {
 	logf("parsing file %q for inject tag comments", inputPath)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, inputPath, nil, parser.ParseComments)
@@ -35,18 +37,18 @@ func parseFile(inputPath string) (retAreasMap map[string][]textArea, err error) 
 		return
 	}
 
-	retAreasMap = make(map[string][]textArea, 0)
-	_appendTextArea := func(areasMap map[string][]textArea) {
+	retAreasMap = make(map[int][]textArea, 0)
+	_appendTextArea := func(areasMap map[int][]textArea) {
 		for key, value := range areasMap {
-			_fileName := key
+			_startPos := key
 			_areas := value
 
-			if areasList, ok := retAreasMap[_fileName]; !ok {
+			if areasList, ok := retAreasMap[_startPos]; !ok {
 				areasList = make([]textArea, 0)
-				retAreasMap[_fileName] = areasList
+				retAreasMap[_startPos] = areasList
 			}
 
-			retAreasMap[_fileName] = append(retAreasMap[_fileName], _areas...)
+			retAreasMap[_startPos] = append(retAreasMap[_startPos], _areas...)
 		}
 	}
 
@@ -75,16 +77,6 @@ func parseFile(inputPath string) (retAreasMap map[string][]textArea, err error) 
 		if !ok {
 			continue
 		}
-
-		/*builder := strings.Builder{}
-		if len(xxxSkip) > 0 {
-			for i, skip := range xxxSkip {
-				builder.WriteString(fmt.Sprintf("%s:\"-\"", skip))
-				if i > 0 {
-					builder.WriteString(",")
-				}
-			}
-		}*/
 
 		var structTags tagItems // 结构体注解上的标签
 		if genDecl.Doc != nil {
@@ -175,7 +167,7 @@ func getTagsFromComment(commentList []*ast.Comment) tagItems {
 	return structTags
 }
 
-func writeFile(inputPath string, areasMap map[string][]textArea) (err error) {
+func writeFile(inputPath string, areasMap map[int][]textArea) (err error) {
 	f, err := os.Open(inputPath)
 	if err != nil {
 		return
@@ -192,10 +184,18 @@ func writeFile(inputPath string, areasMap map[string][]textArea) (err error) {
 
 	// inject custom tags from tail of file first to preserve order
 	// 一个字段名的所有有效标签一次性替换掉
-	for _, areas := range areasMap {
+	offset := 0 // 替换标签后，下一行其实位置的偏移量
+	var startPosList []int
+	for key, _ := range areasMap {
+		startPosList = append(startPosList, key)
+	}
+	sort.Ints(startPosList)
+
+	for _, eachKey := range startPosList {
 		//area := areas[len(areas)-i-1]
 		//logf("inject custom tag %q to expression %q", area.InjectTag, string(contents[area.Start-1:area.End-1]))
-		contents = injectTag(contents, areas)
+		contents, offset = injectTag(contents, areasMap[eachKey], offset)
+		fmt.Println("each == offset=" + gconv.String(offset) + "===== 总长度:" + gconv.String(len(contents)))
 	}
 	if err = ioutil.WriteFile(inputPath, contents, 0644); err != nil {
 		return
@@ -208,7 +208,7 @@ func writeFile(inputPath string, areasMap map[string][]textArea) (err error) {
 }
 
 // 根据字段名构建标签
-func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areasMap map[string][]textArea) {
+func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areasMap map[int][]textArea) {
 	if len(field.Names) <= 0 {
 		return nil
 	}
@@ -245,7 +245,7 @@ func buildTagByFieldName(tagKey, tagValue string, field *ast.Field) (areasMap ma
 	areas := make([]textArea, 0)
 	areas = append(areas, area)
 
-	areasMap = make(map[string][]textArea, 0)
-	areasMap[fieldName] = areas
+	areasMap = make(map[int][]textArea, 0)
+	areasMap[area.Start] = areas
 	return
 }

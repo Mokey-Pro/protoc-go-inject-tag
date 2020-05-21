@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/Monkey-Pro/protoc-go-inject-tag/utils"
+	"sort"
 	"strings"
 )
 
@@ -35,9 +36,13 @@ func (ti tagItems) format() string {
 
 func (ti tagItems) override(nti tagItems) tagItems {
 	overrided := []tagItem{}
+	fileName := ""
 	for i := range ti {
 		var dup = -1
 		for j := range nti {
+			if "" == fileName {
+				fileName = nti[i].value
+			}
 			if ti[i].key == nti[j].key {
 				dup = j
 				break
@@ -50,7 +55,11 @@ func (ti tagItems) override(nti tagItems) tagItems {
 			nti = append(nti[:dup], nti[dup+1:]...)
 		}
 	}
-	return append(overrided, nti...)
+	overrided = append(overrided, nti...)
+	if fileName == `"smallImg"` {
+		fmt.Println("===>>>  ", overrided)
+	}
+	return overrided
 }
 
 func newTagItems(tags ...string) tagItems {
@@ -76,23 +85,41 @@ func newTagItems(tags ...string) tagItems {
 		})
 	}
 
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].key < items[j].key {
+			return false
+		}
+		if items[i].key > items[j].key {
+			return true
+		}
+
+		return false
+	})
+
 	return items
 }
 
 // filedAreas 一个字段的所有标签
-func injectTag(contents []byte, filedAreas []textArea) (injected []byte) {
+func injectTag(contents []byte, filedAreas []textArea, offset int) (injected []byte, finalOffset int) {
 	if len(filedAreas) <= 0 {
 		return
+	}
+	if offset != 0 {
+		println("")
 	}
 
 	temp := filedAreas[0]
 	expr := make([]byte, temp.End-temp.Start)
-	copy(expr, contents[temp.Start-1:temp.End-1])
+	//for i := 0; i < len(contents); i++ {
+	//	fmt.Println(fmt.Sprintf("%v -- %s", i, gconv.String(contents[i])))
+	//}
+	copy(expr, contents[temp.Start-1+offset:temp.End-1+offset])
 
 	getStr := func(areas []textArea, vType int) []string {
 		retList := make([]string, 0)
 		for _, each := range areas {
-			eachStr := ""
+			//eachStr := ""
+			var eachStr string
 			switch vType {
 			case 1:
 				eachStr = each.CurrentTag
@@ -109,9 +136,13 @@ func injectTag(contents []byte, filedAreas []textArea) (injected []byte) {
 	cti := newTagItems(getStr(filedAreas, 1)...)
 	iti := newTagItems(getStr(filedAreas, 2)...)
 	ti := cti.override(iti)
+
+	oldLen := len(expr)
 	expr = rInject.ReplaceAll(expr, []byte(fmt.Sprintf("`%s`", ti.format())))
-	injected = append(injected, contents[:temp.Start-1]...)
+	finalOffset = len(expr) - oldLen + offset
+
+	injected = append(injected, contents[:temp.Start-1+offset]...)
 	injected = append(injected, expr...)
-	injected = append(injected, contents[temp.End-1:]...)
+	injected = append(injected, contents[temp.End-1+offset:]...)
 	return
 }

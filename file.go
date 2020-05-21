@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/Monkey-Pro/protoc-go-inject-tag/constants"
 	"github.com/Monkey-Pro/protoc-go-inject-tag/utils"
-	"github.com/gogf/gf/util/gconv"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -195,7 +194,6 @@ func writeFile(inputPath string, areasMap map[int][]textArea) (err error) {
 		//area := areas[len(areas)-i-1]
 		//logf("inject custom tag %q to expression %q", area.InjectTag, string(contents[area.Start-1:area.End-1]))
 		contents, offset = injectTag(contents, areasMap[eachKey], offset)
-		fmt.Println("each == offset=" + gconv.String(offset) + "===== 总长度:" + gconv.String(len(contents)))
 	}
 	if err = ioutil.WriteFile(inputPath, contents, 0644); err != nil {
 		return

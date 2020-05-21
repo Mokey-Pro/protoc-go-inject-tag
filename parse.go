@@ -36,13 +36,9 @@ func (ti tagItems) format() string {
 
 func (ti tagItems) override(nti tagItems) tagItems {
 	overrided := []tagItem{}
-	fileName := ""
 	for i := range ti {
 		var dup = -1
 		for j := range nti {
-			if "" == fileName {
-				fileName = nti[i].value
-			}
 			if ti[i].key == nti[j].key {
 				dup = j
 				break
@@ -56,9 +52,6 @@ func (ti tagItems) override(nti tagItems) tagItems {
 		}
 	}
 	overrided = append(overrided, nti...)
-	if fileName == `"smallImg"` {
-		fmt.Println("===>>>  ", overrided)
-	}
 	return overrided
 }
 
@@ -104,15 +97,10 @@ func injectTag(contents []byte, filedAreas []textArea, offset int) (injected []b
 	if len(filedAreas) <= 0 {
 		return
 	}
-	if offset != 0 {
-		println("")
-	}
 
 	temp := filedAreas[0]
 	expr := make([]byte, temp.End-temp.Start)
-	//for i := 0; i < len(contents); i++ {
-	//	fmt.Println(fmt.Sprintf("%v -- %s", i, gconv.String(contents[i])))
-	//}
+
 	copy(expr, contents[temp.Start-1+offset:temp.End-1+offset])
 
 	getStr := func(areas []textArea, vType int) []string {
